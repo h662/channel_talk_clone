@@ -38,7 +38,7 @@ public class ChatService {
 
     @Transactional(readOnly = true)
     public List<ChatMessageDto> getMessagesByRoomId(String roomId) {
-        return chatMessageRepository.findByRoomIdOrderCreatedAtAsc(roomId)
+        return chatMessageRepository.findByRoomIdOrderByCreatedAtAsc(roomId)
                 .stream()
                 .map(this::convertToDto)
                 .collect(Collectors.toList());

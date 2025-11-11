@@ -33,7 +33,7 @@ public class ChatMessage {
     @Column
     private String targetSessionId;
 
-    @Column(nullable = false, length = 1000)
+    @Column(length = 1000)
     private String message;
 
     @Enumerated(EnumType.STRING)

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import websocketService from "../services/websocket";
+import { getOrCreateSessionId } from "../utils/sessionId";
 
 const ChatWidget = () => {
   const [isOpen, setIsOpen] = useState(false);
@@ -10,6 +11,7 @@ const ChatWidget = () => {
   const [isConnected, setIsConnected] = useState(false);
 
   const roomId = "customer-support";
+  const sessionId = getOrCreateSessionId();
 
   useEffect(() => {
     if (isOpen && !isConnected && username) {
