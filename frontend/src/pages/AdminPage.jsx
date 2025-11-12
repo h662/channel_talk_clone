@@ -1,13 +1,17 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import websocketService from "../services/websocket";
 import { getOrCreateSessionId } from "../utils/sessionId";
 
 const AdminPage = () => {
   const [messages, setMessages] = useState([]);
+  const [inputMessage, setInputMessage] = useState("");
   const [isConnected, setIsConnected] = useState(false);
   const [selectedSessionId, setSelectedSessionId] = useState(null); // null = 전체 대화
 
+  const messagesEndRef = useRef(null);
+
   const roomId = "customer-support";
+  const adminName = "관리자";
   const sessionId = getOrCreateSessionId(true);
 
   useEffect(() => {
@@ -18,16 +22,114 @@ const AdminPage = () => {
     };
   }, []);
 
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
+
   const connectToChat = async () => {
     try {
       await websocketService.connect(roomId, (message) => {
         setMessages((prev) => [...prev, message]);
       });
       setIsConnected(true);
-      websocketService.addUser(roomId, "관리자", sessionId);
+      websocketService.addUser(roomId, adminName, sessionId);
     } catch (error) {
       console.error("Failed to connect: ", error);
     }
+  };
+
+  const sendMessage = (e) => {
+    e.preventDefault();
+    if (inputMessage.trim() && isConnected) {
+      websocketService.sendMessage(
+        roomId,
+        adminName,
+        sessionId,
+        inputMessage,
+        selectedSessionId
+      );
+      setInputMessage("");
+    }
+  };
+
+  const formatTime = (timestamp) => {
+    if (!timestamp) return "";
+    const date = new Date(timestamp);
+    return date.toLocaleTimeString("ko-KR", {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  };
+
+  const formatDate = (timestamp) => {
+    if (!timestamp) return "";
+    const date = new Date(timestamp);
+    return date.toLocaleDateString("ko-KR");
+  };
+
+  const isAdminMessage = (msg) =>
+    msg.sessionId === sessionId || msg.sender === "관리자";
+
+  const chatMessages = messages.filter((msg) => msg.type === "CHAT");
+  const messagesWithSessionId = chatMessages.filter((msg) => msg.sessionId);
+  const nonAdminMessages = messagesWithSessionId.filter(
+    (msg) => !isAdminMessage(msg)
+  );
+
+  const uniqueSessionIds = [
+    ...new Set(nonAdminMessages.map((msg) => msg.sessionId)),
+  ];
+
+  const sessions = uniqueSessionIds
+    .map((sid) => {
+      const sessionMessages = messages.filter(
+        (msg) =>
+          msg.type === "CHAT" && msg.sessionId === sid && !isAdminMessage(msg)
+      );
+
+      const lastMessage = sessionMessages[sessionMessages.length - 1];
+
+      return {
+        sessionId: sid,
+        sender: lastMessage?.sender || "익명",
+        messageCount: sessionMessages.length,
+        lastMessage,
+      };
+    })
+    .sort((a, b) => {
+      if (!a.lastMessage || !b.lastMessage) return 0;
+      return (
+        new Date(b.lastMessage.createdAt) - new Date(a.lastMessage.createdAt)
+      );
+    });
+
+  const filteredMessages = selectedSessionId
+    ? messages.filter((msg) => {
+        if (msg.sessionId === selectedSessionId) {
+          return true;
+        }
+        if (isAdminMessage(msg)) {
+          if (msg.targetSessionId === selectedSessionId) {
+            return true;
+          }
+          if (msg.targetSessionId === null) {
+            return true;
+          }
+        }
+        return false;
+      })
+    : messages;
+
+  const handleSessionClick = (sessionId) => {
+    setSelectedSessionId(sessionId);
+  };
+
+  const handleShowAllSessions = () => {
+    setSelectedSessionId(null);
   };
 
   return (
@@ -56,11 +158,11 @@ const AdminPage = () => {
           <div className="p-4">
             <div className="flex items-center justify-between mb-3">
               <h2 className="text-xs font-semibold text-gray-500 uppercase">
-                {/* 활성 세션 ({sessions.length}) */}
+                활성 세션 ({sessions.length})
               </h2>
               {selectedSessionId && (
                 <button
-                  // onClick={handleShowAllSessions}
+                  onClick={handleShowAllSessions}
                   className="text-xs text-blue-600 hover:text-blue-800 font-medium"
                 >
                   전체 보기
@@ -69,7 +171,7 @@ const AdminPage = () => {
             </div>
 
             {/* 전체 대화 버튼 */}
-            {/* <div
+            <div
               onClick={handleShowAllSessions}
               className={`mb-2 rounded-lg p-3 transition-colors cursor-pointer border ${
                 selectedSessionId === null
@@ -89,10 +191,10 @@ const AdminPage = () => {
                   </p>
                 </div>
               </div>
-            </div> */}
+            </div>
 
             {/* 세션 리스트 */}
-            {/* <div className="space-y-2">
+            <div className="space-y-2">
               {sessions.map((session) => (
                 <div
                   key={session.sessionId}
@@ -136,11 +238,11 @@ const AdminPage = () => {
                   대기 중인 사용자가 없습니다
                 </p>
               )}
-            </div> */}
+            </div>
           </div>
         </div>
 
-        {/* <div className="p-4 border-t border-gray-200 bg-gray-50">
+        <div className="p-4 border-t border-gray-200 bg-gray-50">
           <div className="text-xs text-gray-500">
             <p>
               총 메시지: {messages.filter((m) => m.type === "CHAT").length}개
@@ -149,13 +251,13 @@ const AdminPage = () => {
               마지막 업데이트: {new Date().toLocaleTimeString("ko-KR")}
             </p>
           </div>
-        </div> */}
+        </div>
       </div>
 
       {/* Main Chat Area */}
       <div className="flex-1 flex flex-col">
         {/* Header */}
-        {/* <div className="bg-white border-b border-gray-200 p-6">
+        <div className="bg-white border-b border-gray-200 p-6">
           {selectedSessionId ? (
             <>
               <div className="flex items-center gap-3">
@@ -180,10 +282,10 @@ const AdminPage = () => {
               </p>
             </>
           )}
-        </div> */}
+        </div>
 
         {/* Messages */}
-        {/* <div className="flex-1 overflow-y-auto p-6 bg-gray-50">
+        <div className="flex-1 overflow-y-auto p-6 bg-gray-50">
           {filteredMessages.length === 0 ? (
             <div className="flex items-center justify-center h-full">
               <p className="text-gray-400">메시지가 없습니다</p>
@@ -293,10 +395,10 @@ const AdminPage = () => {
             })
           )}
           <div ref={messagesEndRef} />
-        </div> */}
+        </div>
 
         {/* Input Area */}
-        {/* <div className="bg-white border-t border-gray-200 p-6">
+        <div className="bg-white border-t border-gray-200 p-6">
           <form onSubmit={sendMessage} className="max-w-4xl mx-auto">
             {selectedSessionId && (
               <div className="mb-3 flex items-center gap-2 text-sm">
@@ -349,7 +451,7 @@ const AdminPage = () => {
               </p>
             )}
           </form>
-        </div> */}
+        </div>
       </div>
     </div>
   );
