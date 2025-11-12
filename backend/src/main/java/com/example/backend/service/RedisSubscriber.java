@@ -21,7 +21,7 @@ public class RedisSubscriber implements MessageListener {
         try {
             String publishMessage = new String(message.getBody());
             ChatMessageDto chatMessage = objectMapper.readValue(publishMessage, ChatMessageDto.class);
-            String destination = "/topic/chat" + chatMessage.getRoomId();
+            String destination = "/topic/chat/" + chatMessage.getRoomId();
             messagingTemplate.convertAndSend(destination, chatMessage);
         } catch (Exception e) {
             log.error("Error processing message", e);

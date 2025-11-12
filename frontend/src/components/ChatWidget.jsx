@@ -1,17 +1,24 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import websocketService from "../services/websocket";
 import { getOrCreateSessionId } from "../utils/sessionId";
 
 const ChatWidget = () => {
   const [isOpen, setIsOpen] = useState(false);
+  const [messages, setMessages] = useState([]);
   const [inputMessage, setInputMessage] = useState("");
   const [username, setUsername] = useState(
     () => sessionStorage.getItem("chat_username") || ""
   );
   const [isConnected, setIsConnected] = useState(false);
 
+  const messagesEndRef = useRef(null);
+
   const roomId = "customer-support";
   const sessionId = getOrCreateSessionId();
+
+  const isMyMessage = (msg) => {
+    return msg.sessionId === sessionId && msg.sender === username;
+  };
 
   useEffect(() => {
     if (isOpen && !isConnected && username) {
@@ -25,6 +32,14 @@ const ChatWidget = () => {
     };
   }, [isOpen, username]);
 
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
+
   const connectToChat = async () => {
     try {
       await websocketService.connect(roomId, (message) => {
@@ -36,7 +51,7 @@ const ChatWidget = () => {
         const shouldShow = isMyMessage || (isAdminMessage && isForMe);
 
         if (shouldShow) {
-          // 이전 메시지에 추가
+          setMessages((prev) => [...prev, message]);
         }
       });
       setIsConnected(true);
@@ -48,6 +63,10 @@ const ChatWidget = () => {
 
   const sendMessage = (e) => {
     e.preventDefault();
+    if (inputMessage.trim() && isConnected) {
+      websocketService.sendMessage(roomId, username, sessionId, inputMessage);
+      setInputMessage("");
+    }
   };
 
   const handleOpen = () => {
@@ -61,6 +80,15 @@ const ChatWidget = () => {
       }
     }
     setIsOpen(true);
+  };
+
+  const formatTime = (timestamp) => {
+    if (!timestamp) return "";
+    const date = new Date(timestamp);
+    return date.toLocaleTimeString("ko-KR", {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
   };
 
   return (
@@ -91,7 +119,7 @@ const ChatWidget = () => {
           </div>
 
           {/* Messages */}
-          {/* <div className="flex-1 overflow-y-auto p-4 bg-gray-50">
+          <div className="flex-1 overflow-y-auto p-4 bg-gray-50">
             {messages.map((msg, index) => (
               <div key={index} className="mb-4">
                 {msg.type === "JOIN" || msg.type === "LEAVE" ? (
@@ -156,7 +184,7 @@ const ChatWidget = () => {
               </div>
             ))}
             <div ref={messagesEndRef} />
-          </div> */}
+          </div>
 
           {/* Input */}
           <form onSubmit={sendMessage} className="p-4 border-t border-gray-200">
